@@ -1,8 +1,18 @@
 from flask import Flask, request
 import sqlite3
 from urllib.parse import parse_qs
+import libsql_client
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
+    
+conn = libsql_client.create_client_sync(
+    url=os.environ["TURSO_DATABASE_URL"].strip(),
+    auth_token=os.environ["TURSO_AUTH_TOKEN"].strip()
+)
 
 def update_knowledge_level(current_level, result):
     if result == "理解できた":
@@ -22,20 +32,15 @@ def webhook():
             item_id = int(data["item_id"][0])
             result = data["result"][0]
 
-            conn = sqlite3.connect("knowledge.db")
-            cur = conn.cursor()
-            cur.execute("SELECT knowledge_level FROM items WHERE id = ?", (item_id,))
-            row = cur.fetchone()
+            db_result = conn.execute("SELECT knowledge_level FROM items WHERE id = ?", (item_id,))
+            row = db_result.rows[0] if db_result.rows else None
             if row:
                 new_level = update_knowledge_level(row[0], result)
-                cur.execute("""
+                conn.execute("""
                     UPDATE items
                     SET knowledge_level = ?, last_reviewed_at = CURRENT_TIMESTAMP
                     WHERE id = ?
                 """, (new_level, item_id))
-                conn.commit()
-            conn.close()
-
     return "OK", 200
 
 

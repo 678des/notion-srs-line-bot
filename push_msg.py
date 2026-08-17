@@ -5,6 +5,7 @@ load_dotenv()
 
 import os
 import sqlite3
+import libsql_client
 from linebot.v3.messaging import (
     Configuration, ApiClient, MessagingApi, PushMessageRequest,
     TextMessage, QuickReply, QuickReplyItem, PostbackAction
@@ -12,17 +13,18 @@ from linebot.v3.messaging import (
 LINE_CHANNEL_ACCESS_TOKEN = os.environ["LINE_CHANNEL_ACCESS_TOKEN"]
 LINE_USER_ID = os.environ["LINE_USER_ID"]
 
+conn = libsql_client.create_client_sync(
+    url=os.environ["TURSO_DATABASE_URL"].strip(),
+    auth_token=os.environ["TURSO_AUTH_TOKEN"].strip()
+)
+
 def get_lowest_knowledge_item():
-    conn = sqlite3.connect("knowledge.db")
-    cur = conn.cursor()
-    cur.execute("""
+    result = conn.execute("""
         SELECT id, title, body FROM items
         ORDER BY knowledge_level ASC, last_reviewed_at ASC
         LIMIT 1
     """)
-    row = cur.fetchone()
-    conn.close()
-    return row  # (id, title, body)
+    return result.rows[0] if result.rows else None
 
 
 
@@ -52,3 +54,5 @@ if item:
     print(f"送信完了: {title}")
 else:
     print("送信対象のアイテムがありません")
+
+conn.close()

@@ -5,11 +5,18 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
+import libsql_client
+
+conn = libsql_client.create_client_sync(
+    url=os.environ["TURSO_DATABASE_URL"],
+    auth_token=os.environ["TURSO_AUTH_TOKEN"]
+)
+
 notion = Client(auth=os.environ["NOTION_TOKEN"])
 #DATABASE_ID = os.environ["NOTION_DATABASE_ID"]
 
-conn = sqlite3.connect("knowledge.db")
-cur = conn.cursor()
+#conn = sqlite3.connect("knowledge.db")
+#cur = conn.cursor()
 # id DB自体の要素を識別するためのID(db)
 # notion_page_id (notion)
 # title ページタイトル(notion)
@@ -18,7 +25,7 @@ cur = conn.cursor()
 # notion_last_edited (notion)
 # last_reviewed_at Lineで最近いつ復習したか(db)
 # created_at (db)
-cur.execute("""
+conn.execute("""
 CREATE TABLE IF NOT EXISTS items (
     id INTEGER PRIMARY KEY AUTOINCREMENT, 
     notion_page_id TEXT UNIQUE NOT NULL,
@@ -31,7 +38,6 @@ CREATE TABLE IF NOT EXISTS items (
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 )
 """)
-conn.commit()
 
 def make_hash(title, body):
     return hashlib.md5((title + body).encode()).hexdigest()
@@ -62,13 +68,13 @@ for page in response["results"]:
     content_hash = make_hash(title, body)
 
     # すでに存在するか確認
-    cur.execute("SELECT content_hash, knowledge_level FROM items WHERE notion_page_id = ?", (page_id,))
-    existing = cur.fetchone()
+    result = conn.execute("SELECT content_hash, knowledge_level FROM items WHERE notion_page_id = ?", (page_id,))
+    existing = result.rows[0] if result.rows else None
 
     if existing is None:
         # 新規追加
         print("新規追加します",title)
-        cur.execute("""
+        conn.execute("""
             INSERT INTO items (notion_page_id, title, body, content_hash, notion_last_edited, knowledge_level)
             VALUES (?, ?, ?, ?, ?, 1)
         """, (page_id, title, body, content_hash, page["last_edited_time"]))
@@ -76,7 +82,7 @@ for page in response["results"]:
     elif existing[0] != content_hash:
         # 内容が変わっていたら知識度を1にダウン(前回決めたルール)
         print("内容が変わっていました",title)
-        cur.execute("""
+        conn.execute("""
             UPDATE items
             SET title = ?, body = ?, content_hash = ?, notion_last_edited = ?, knowledge_level = 1
             WHERE notion_page_id = ?
@@ -87,5 +93,4 @@ for page in response["results"]:
         print("変更なしです",title)
         pass
 
-conn.commit()
 conn.close()
