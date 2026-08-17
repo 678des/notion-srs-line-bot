@@ -2,3 +2,5 @@ notion-client
 python-dotenv
 line-bot-sdk
 flask
+libsql-client
+
