@@ -54,6 +54,17 @@ def webhook():
                 print("★NG: rowがNoneでした(該当IDが見つからない)", flush=True)
     return "OK", 200
 
-
+@app.route("/debug-turso")
+def debug_turso():
+    import time
+    start = time.time()
+    try:
+        result = conn.execute("SELECT 1")
+        elapsed = time.time() - start
+        return f"成功: {result} (かかった時間: {elapsed:.2f}秒)"
+    except Exception as e:
+        elapsed = time.time() - start
+        return f"エラー: {e} (かかった時間: {elapsed:.2f}秒)"
+        
 if __name__ == "__main__":
     app.run(port=5000)
